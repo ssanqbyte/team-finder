@@ -35,9 +35,9 @@ class ProfileEditForm(forms.ModelForm):
         fields = ("first_name", "last_name", "avatar", "phone", "github_url")
         widgets = {
             "avatar": forms.FileInput(attrs={"style": "display: none;"}),
-            
+
         }
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["avatar"].required = False
@@ -54,4 +54,3 @@ class ProfileEditForm(forms.ModelForm):
                 "Пользователь с таким номером телефона уже зарегистрирован."
             )
         return phone
-

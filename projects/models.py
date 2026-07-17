@@ -11,15 +11,15 @@ from core.constants import (
 
 class Project(models.Model):
     """Pet-проект, для которого автор ищет команду."""
-    
+
     STATUS_OPEN = "open"
     STATUS_CLOSED = "closed"
-    
+
     STATUS_CHOICES = [
         (STATUS_OPEN, "Открыт"),
         (STATUS_CLOSED, "Закрыт"),
     ]
-    
+
     name = models.CharField(
         "Название",
         max_length=PROJECT_NAME_MAX_LENGTH
@@ -45,7 +45,7 @@ class Project(models.Model):
         related_name="participated_projects",
         blank=True,
     )
-    
+
     class Meta:
         verbose_name = "Проект"
         verbose_name_plural = "Проекты"
@@ -53,10 +53,10 @@ class Project(models.Model):
         indexes = [
             models.Index(fields=["-created_at"], name="project_created_at_idx"),
         ]
-    
+
     def __str__(self):
         return self.name
-    
+
     def get_absolute_url(self):
         """Канонический URL для объекта."""
         return reverse('projects:project_detail', kwargs={'project_id': self.id})

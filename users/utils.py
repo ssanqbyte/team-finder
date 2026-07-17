@@ -46,10 +46,10 @@ FONT_PATH = (
 def generate_avatar(letter: str) -> ContentFile:
     """
     Создаёт PNG-аватарку с первой буквой имени на однотонном фоне.
-    
+
     Args:
         letter: Первая буква имени пользователя
-        
+
     Returns:
         ContentFile: Файл аватарки в формате PNG
     """
@@ -84,5 +84,5 @@ def generate_avatar(letter: str) -> ContentFile:
     image_io = BytesIO()
     image.save(image_io, format="PNG")
     image_io.seek(0)
-    
+
     return ContentFile(image_io.read(), name=f"avatar_{letter}.png")

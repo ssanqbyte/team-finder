@@ -12,7 +12,7 @@ from django.contrib.auth.forms import PasswordChangeForm
 from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib import messages
 
-from core.services import paginate_queryset  
+from core.services import paginate_queryset
 from .forms import LoginForm, ProfileEditForm, RegisterForm
 
 User = get_user_model()
@@ -29,14 +29,14 @@ def register_view(request):
     """Регистрация нового пользователя."""
     if request.user.is_authenticated:
         return redirect("projects:list")
-    
+
     form = RegisterForm(request.POST or None)
-    
-    if form.is_valid():  
+
+    if form.is_valid():
         form.save()
         messages.success(request, "Регистрация прошла успешно! Войдите в систему.")
         return redirect("users:login")
-    
+
     return render(request, "users/register.html", {"form": form})
 
 
@@ -44,10 +44,10 @@ def login_view(request):
     """Вход в систему по email и паролю."""
     if request.user.is_authenticated:
         return redirect("projects:list")
-    
+
     form = LoginForm(request.POST or None)
-    
-    if form.is_valid():  
+
+    if form.is_valid():
         user = authenticate(
             request,
             username=form.cleaned_data["email"],
@@ -57,7 +57,7 @@ def login_view(request):
             login(request, user)
             return redirect("projects:list")
         form.add_error(None, "Неверный email или пароль")
-    
+
     return render(request, "users/login.html", {"form": form})
 
 
@@ -71,7 +71,7 @@ def users_list(request):
     """Список пользователей с фильтрацией (вариант 1) и пагинацией."""
     participants = User.objects.order_by("-id")
     active_filter = request.GET.get("filter")
-    
+
     if not (request.user.is_authenticated and active_filter in USER_FILTERS):
         active_filter = None
 
@@ -93,14 +93,14 @@ def users_list(request):
         ).distinct()
 
     page_obj = paginate_queryset(participants, request)
-    
+
     context = {
         "participants": page_obj,
         "active_filter": active_filter,
         "page_obj": page_obj,
         "extra_query": f"filter={active_filter}" if active_filter else "",
     }
-    
+
     return render(request, "users/participants.html", context)
 
 
@@ -118,12 +118,12 @@ def edit_profile(request):
         request.FILES or None,
         instance=request.user,
     )
-    
-    if form.is_valid(): 
+
+    if form.is_valid():
         form.save()
         messages.success(request, "Профиль успешно обновлён!")
         return redirect("users:detail", user_id=request.user.id)
-    
+
     return render(request, "users/edit_profile.html", {"form": form})
 
 
@@ -131,13 +131,13 @@ def edit_profile(request):
 def change_password(request):
     """Смена пароля залогиненного пользователя."""
     form = PasswordChangeForm(user=request.user, data=request.POST or None)
-    
-    if form.is_valid():  
+
+    if form.is_valid():
         user = form.save()
-        update_session_auth_hash(request, user)  
+        update_session_auth_hash(request, user)
         messages.success(request, "Пароль успешно изменён!")
         return redirect("users:detail", user_id=request.user.id)
-    
+
     return render(request, "users/change_password.html", {"form": form})
 
 
@@ -145,8 +145,7 @@ def change_password(request):
 def favorites(request):
     """Страница избранных проектов текущего пользователя."""
     projects = request.user.favorites.all().order_by("-created_at")
-    
-    
+
     page_obj = paginate_queryset(projects, request)
-    
+
     return render(request, "users/favorites.html", {"page_obj": page_obj})

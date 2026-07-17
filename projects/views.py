@@ -17,11 +17,11 @@ def project_list(request):
     projects = (
         Project.objects
         .select_related("owner")
-        .prefetch_related("participants")  
+        .prefetch_related("participants")
         .order_by("-created_at")
     )
     page_obj = paginate_queryset(projects, request)
-    
+
     context = {"page_obj": page_obj}
     return render(request, "projects/project_list.html", context)
 
@@ -31,7 +31,7 @@ def favorite_projects(request):
     projects = (
         request.user.favorites
         .select_related("owner")
-        .prefetch_related("participants")  
+        .prefetch_related("participants")
         .order_by("-created_at")
     )
 
@@ -56,7 +56,7 @@ def create_project(request):
             return redirect("projects:project_detail", project_id=project.id)
     else:
         form = ProjectForm()
-    
+
     return render(request, "projects/create-project.html", {"form": form})
 
 
@@ -83,22 +83,21 @@ def complete_project(request, project_id):
     if not request.user.is_authenticated:
         return JsonResponse(
             {"status": "error", "message": "Authentication required"},
-            status=HTTPStatus.UNAUTHORIZED  
+            status=HTTPStatus.UNAUTHORIZED
         )
-    
+
     project = get_object_or_404(Project, pk=project_id)
-    
+
     if project.owner != request.user or project.status != Project.STATUS_OPEN:
         return JsonResponse({"status": "error"}, status=HTTPStatus.FORBIDDEN)
     project.status = Project.STATUS_CLOSED
-    
+
     if project.status != Project.STATUS_OPEN:
         return JsonResponse(
             {"status": "error", "message": "Project is already completed"},
             status=HTTPStatus.BAD_REQUEST
         )
-        
-    
+
     project.status = "closed"
     project.save()
     return JsonResponse(
@@ -115,17 +114,17 @@ def toggle_favorite(request, project_id):
             {"status": "error", "message": "Authentication required"},
             status=HTTPStatus.UNAUTHORIZED
         )
-    
+
     project = get_object_or_404(Project, pk=project_id)
-    
+
     if (is_favorited := request.user.favorites.filter(pk=project.pk).exists()):
         request.user.favorites.remove(project)
     else:
         request.user.favorites.add(project)
-    
+
     return JsonResponse({
         "status": "ok",
-        "favorited": is_favorited  
+        "favorited": is_favorited
     })
 
 
@@ -137,14 +136,14 @@ def toggle_participate(request, project_id):
             {"status": "error", "message": "Authentication required"},
             status=HTTPStatus.UNAUTHORIZED
         )
-    
+
     project = get_object_or_404(Project, pk=project_id)
-    
+
     if (is_participant := project.participants.filter(pk=request.user.pk).exists()):
         project.participants.remove(request.user)
     else:
         project.participants.add(request.user)
-    
+
     return JsonResponse({
         "status": "ok",
         "participant": is_participant
