@@ -1,76 +1,96 @@
+
+
 import uuid
 
-from django.contrib.auth.models import (
-    AbstractBaseUser,
-    BaseUserManager,
-    PermissionsMixin,
-)
+from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
 
+from core.constants import (
+    USER_EMAIL_MAX_LENGTH,
+    USER_FIRST_NAME_MAX_LENGTH,
+    USER_LAST_NAME_MAX_LENGTH,
+    USER_PHONE_MAX_LENGTH,
+    USER_GITHUB_URL_MAX_LENGTH,
+)
+from .managers import UserManager  
 from .utils import generate_avatar
-
-
-class UserManager(BaseUserManager):
-    """Менеджер пользователей: идентификация по email вместо username."""
-
-    use_in_migrations = True
-
-    def create_user(self, email, password=None, **extra_fields):
-        if not email:
-            raise ValueError("У пользователя должен быть email.")
-        email = self.normalize_email(email)
-        user = self.model(email=email, **extra_fields)
-        user.set_password(password)
-        user.save(using=self._db)
-        return user
-
-    def create_superuser(self, email, password=None, **extra_fields):
-        extra_fields.setdefault("is_staff", True)
-        extra_fields.setdefault("is_superuser", True)
-        if extra_fields.get("is_staff") is not True:
-            raise ValueError("У суперпользователя is_staff должен быть True.")
-        if extra_fields.get("is_superuser") is not True:
-            raise ValueError("У суперпользователя is_superuser должен быть True.")
-        return self.create_user(email, password, **extra_fields)
 
 
 class User(AbstractBaseUser, PermissionsMixin):
     """Пользователь платформы TeamFinder."""
-
-    email = models.EmailField("Электронная почта", unique=True)
-    name = models.CharField("Имя", max_length=124)
-    surname = models.CharField("Фамилия", max_length=124)
-    avatar = models.ImageField("Аватар", upload_to="avatars/")
-    phone = models.CharField("Телефон", max_length=12, blank=True, default="")
-    github_url = models.URLField("Ссылка на GitHub", blank=True)
-    about = models.TextField("О себе", max_length=256, blank=True)
+    
+    # Поля модели
+    email = models.EmailField(
+        "Электронная почта",
+        max_length=USER_EMAIL_MAX_LENGTH,  
+        unique=True
+    )
+    first_name = models.CharField(
+        "Имя",
+        max_length=USER_FIRST_NAME_MAX_LENGTH  
+    )
+    last_name = models.CharField(
+        "Фамилия",
+        max_length=USER_LAST_NAME_MAX_LENGTH  
+    )
+    avatar = models.ImageField(
+        "Аватар",
+        upload_to="avatars/",
+        blank=True,
+        null=True
+    )
+    phone = models.CharField(
+        "Телефон",
+        max_length=USER_PHONE_MAX_LENGTH,  
+        blank=True,
+        unique=True,
+        null=True
+    )
+    github_url = models.URLField(
+        "Ссылка на GitHub",
+        max_length=USER_GITHUB_URL_MAX_LENGTH,  
+        blank=True
+    )
+    
+    # Поля для авторизации и прав
     is_active = models.BooleanField("Активен", default=True)
-    is_staff = models.BooleanField("Администратор", default=False)
+    is_staff = models.BooleanField("Персонал", default=False)
+    date_joined = models.DateTimeField("Дата регистрации", auto_now_add=True)
+    last_login = models.DateTimeField("Последний вход", null=True, blank=True)
+    
+    # Связи
     favorites = models.ManyToManyField(
         "projects.Project",
-        verbose_name="Избранные проекты",
-        related_name="interested_users",
+        verbose_name="Избранное",
         blank=True,
+        related_name="favorited_by"
     )
-
-    objects = UserManager()
-
+    
+    # Настройки аутентификации
     USERNAME_FIELD = "email"
-    REQUIRED_FIELDS = ["name", "surname"]
-
+    REQUIRED_FIELDS = ["first_name", "last_name"]
+    
+    # Менеджер
+    objects = UserManager()  
+    
     class Meta:
         verbose_name = "Пользователь"
         verbose_name_plural = "Пользователи"
-        ordering = ["-id"]
-
+        ordering = ["-date_joined"]
+    
     def __str__(self):
-        return f"{self.name} {self.surname} ({self.email})"
-
+        return self.email
+    
     def save(self, *args, **kwargs):
-        if not self.avatar:
-            self.avatar.save(
-                f"avatar_{uuid.uuid4()}.png",
-                generate_avatar(self.name or self.email),
-                save=False,
-            )
+        """Генерация аватарки при создании, если не загружена."""
+        if not self.pk and not self.avatar:
+            self.avatar = generate_avatar(self.first_name or "U")
         super().save(*args, **kwargs)
+    
+    def get_full_name(self):
+        """Возвращает полное имя пользователя."""
+        return f"{self.first_name} {self.last_name}".strip()
+    
+    def get_short_name(self):
+        """Возвращает краткое имя пользователя."""
+        return self.first_name

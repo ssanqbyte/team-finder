@@ -1,7 +1,7 @@
 
 from django.conf import settings
 from django.db import models
-from django.urls import reverse  
+from django.urls import reverse
 
 from core.constants import (
     PROJECT_NAME_MAX_LENGTH,
@@ -22,7 +22,7 @@ class Project(models.Model):
     
     name = models.CharField(
         "Название",
-        max_length=PROJECT_NAME_MAX_LENGTH  
+        max_length=PROJECT_NAME_MAX_LENGTH
     )
     description = models.TextField("Описание", blank=True)
     owner = models.ForeignKey(
@@ -35,7 +35,7 @@ class Project(models.Model):
     github_url = models.URLField("Ссылка на GitHub", blank=True)
     status = models.CharField(
         "Статус",
-        max_length=PROJECT_STATUS_MAX_LENGTH,  
+        max_length=PROJECT_STATUS_MAX_LENGTH,
         choices=STATUS_CHOICES,
         default=STATUS_OPEN,
     )
