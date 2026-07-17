@@ -1,56 +1,151 @@
-from django import forms
+from django.conf import settings
+from django.contrib.auth import (
+    authenticate,
+    get_user_model,
+    login,
+    logout,
+    update_session_auth_hash,
+)
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import PasswordChangeForm
+from django.shortcuts import get_object_or_404, redirect, render
+from django.contrib import messages
 
-from .models import User
-from .validators import normalize_phone, validate_github_url, validate_phone_format
+from core.services import paginate_queryset
+from .forms import LoginForm, ProfileEditForm, RegisterForm
+
+User = get_user_model()
+
+USER_FILTERS = (
+    "owners-of-favorite-projects",
+    "owners-of-participating-projects",
+    "interested-in-my-projects",
+    "participants-of-my-projects",
+)
 
 
-class RegisterForm(forms.ModelForm):
-    """Форма регистрации нового пользователя."""
+def register_view(request):
+    """Регистрация нового пользователя."""
+    if request.user.is_authenticated:
+        return redirect("projects:list")
+    
+    form = RegisterForm(request.POST or None)
+    if form.is_valid():
+        form.save()
+        messages.success(request, "Регистрация прошла успешно! Войдите в систему.")
+        return redirect("users:login")
+    
+    return render(request, "users/register.html", {"form": form})
 
-    password = forms.CharField(label="Пароль", widget=forms.PasswordInput)
 
-    class Meta:
-        model = User
-        fields = ("first_name", "last_name", "email")
-
-    def save(self, commit=True):
-        return User.objects.create_user(
-            email=self.cleaned_data["email"],
-            password=self.cleaned_data["password"],
-            name=self.cleaned_data["name"],
-            surname=self.cleaned_data["surname"],
+def login_view(request):
+    """Вход в систему по email и паролю."""
+    if request.user.is_authenticated:
+        return redirect("projects:list")
+    
+    form = LoginForm(request.POST or None)
+    if form.is_valid():
+        user = authenticate(
+            request,
+            username=form.cleaned_data["email"],
+            password=form.cleaned_data["password"],
         )
+        if user is not None:
+            login(request, user)
+            return redirect("projects:list")
+        form.add_error(None, "Неверный email или пароль")
+    
+    return render(request, "users/login.html", {"form": form})
 
 
-class LoginForm(forms.Form):
-    """Форма входа по email и паролю."""
+def logout_view(request):
+    """Выход из аккаунта."""
+    logout(request)
+    return redirect("projects:list")
 
-    email = forms.EmailField(label="Электронная почта")
-    password = forms.CharField(label="Пароль", widget=forms.PasswordInput)
+
+def users_list(request):
+    """Список пользователей с фильтрацией (вариант 1) и пагинацией."""
+    participants = User.objects.order_by("-id")
+    active_filter = request.GET.get("filter")
+    
+    if not (request.user.is_authenticated and active_filter in USER_FILTERS):
+        active_filter = None
+
+    if active_filter == "owners-of-favorite-projects":
+        participants = participants.filter(
+            owned_projects__in=request.user.favorites.all()
+        ).distinct()
+    elif active_filter == "owners-of-participating-projects":
+        participants = participants.filter(
+            owned_projects__participants=request.user
+        ).distinct()
+    elif active_filter == "interested-in-my-projects":
+        participants = participants.filter(
+            favorites__owner=request.user
+        ).distinct()
+    elif active_filter == "participants-of-my-projects":
+        participants = participants.filter(
+            participated_projects__owner=request.user
+        ).distinct()
+
+    page_obj = paginate_queryset(participants, request)
+    
+    context = {
+        "participants": page_obj,
+        "active_filter": active_filter,
+        "page_obj": page_obj,
+        "extra_query": f"filter={active_filter}" if active_filter else "",
+    }
+    
+    return render(request, "users/participants.html", context)
 
 
-class ProfileEditForm(forms.ModelForm):
-    class Meta:
-        model = User
-        fields = ("first_name", "last_name", "avatar", "phone", "github_url")
-        widgets = {
-            "avatar": forms.FileInput(attrs={"style": "display: none;"}),
+def user_detail(request, user_id):
+    """Публичный профиль пользователя."""
+    profile_user = get_object_or_404(User, pk=user_id)
+    return render(request, "users/user-details.html", {"user": profile_user})
 
-        }
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields["avatar"].required = False
+@login_required
+def edit_profile(request):
+    """Редактирование собственного профиля."""
+    form = ProfileEditForm(
+        request.POST or None,
+        request.FILES or None,
+        instance=request.user,
+    )
+    
+    if form.is_valid():
+        form.save()
+        messages.success(request, "Профиль успешно обновлён!")
+        return redirect("users:detail", user_id=request.user.id)
+    
+    return render(request, "users/edit_profile.html", {"form": form})
 
-    def clean_phone(self):
-        phone = self.cleaned_data.get("phone", "").strip()
-        if not phone:
-            return phone
-        validate_phone_format(phone)
-        phone = normalize_phone(phone)
-        duplicates = User.objects.exclude(pk=self.instance.pk).filter(phone=phone)
-        if duplicates.exists():
-            raise forms.ValidationError(
-                "Пользователь с таким номером телефона уже зарегистрирован."
-            )
-        return phone
+
+@login_required
+def change_password(request):
+    """Смена пароля залогиненного пользователя."""
+    form = PasswordChangeForm(user=request.user, data=request.POST or None)
+    
+    if form.is_valid():
+        user = form.save()
+        update_session_auth_hash(request, user)
+        messages.success(request, "Пароль успешно изменён!")
+        return redirect("users:detail", user_id=request.user.id)
+    
+    return render(request, "users/change_password.html", {"form": form})
+
+
+@login_required
+def favorites(request):
+    """Страница избранных проектов текущего пользователя."""
+    projects = (
+        request.user.favorites
+        .select_related("owner")
+        .prefetch_related("participants")
+        .order_by("-created_at")
+    )
+    page_obj = paginate_queryset(projects, request)
+    return render(request, "users/favorites.html", {"page_obj": page_obj})

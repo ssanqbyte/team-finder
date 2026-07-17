@@ -1,7 +1,5 @@
 from pathlib import Path
 
-from django.urls import reverse_lazy
-
 from decouple import config
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -67,10 +65,6 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "db.sqlite3",
-        "USER": config("POSTGRES_USER"),
-        "PASSWORD": config("POSTGRES_PASSWORD"),
-        "HOST": config("POSTGRES_HOST", default="localhost"),
-        "PORT": config("POSTGRES_PORT", default=5432, cast=int),
     }
 }
 
@@ -79,9 +73,9 @@ DATABASES = {
 
 AUTH_USER_MODEL = "users.User"
 
-LOGIN_URL = reverse_lazy("users:login")
-LOGIN_REDIRECT_URL = "/projects/list/"
-LOGOUT_REDIRECT_URL = "/projects/list/"
+LOGIN_URL = "users:login"
+LOGIN_REDIRECT_URL = "projects:list"
+LOGOUT_REDIRECT_URL = "projects:list"
 
 
 # Password validation
